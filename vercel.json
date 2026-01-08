@@ -11,5 +11,10 @@
       "src": "/api/(.*)",
       "dest": "/api/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/poll.js": {
+      "maxDuration": 60
+    }
+  }
 }
