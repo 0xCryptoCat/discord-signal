@@ -1,0 +1,14 @@
+{
+  "name": "discord-signal",
+  "version": "1.0.0",
+  "description": "SOL-only signal feed for Discord with 1-second polling",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node index.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
