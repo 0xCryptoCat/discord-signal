@@ -655,7 +655,7 @@ export async function pollLoop(options = {}) {
   const { 
     dryRun = false, 
     maxDurationMs = 59000,  // 59 seconds (leave 1s buffer for response)
-    pollIntervalMs = 1000,  // Poll every 1 second for fastest signal detection
+    pollIntervalMs = 10000, // Poll every 10 seconds
   } = options;
   
   const startTime = Date.now();

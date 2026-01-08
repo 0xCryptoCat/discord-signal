@@ -20,11 +20,11 @@ export default async function handler(req, res) {
   
   try {
     // Run poll loop for 59 seconds (1s buffer for response)
-    // Poll every 1 second for fastest signal detection
+    // Poll every 10 seconds to allow time for wallet scoring
     const results = await pollLoop({
       dryRun: false,
       maxDurationMs: 59000, // 59 seconds
-      pollIntervalMs: 1000, // 1 second between polls
+      pollIntervalMs: 10000, // 10 seconds between polls
     });
     
     const totalTime = Date.now() - startTime;
