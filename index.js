@@ -35,7 +35,7 @@ let seenTokensLoaded = false;
 
 /**
  * Load already-sent CAs from Discord channel messages
- * Requires DISCORD_BOT_TOKEN env var
+ * Requires DISCORD_BOT_TOKEN env var AND "MESSAGE CONTENT INTENT" enabled in Discord Developer Portal
  */
 async function loadSeenTokensFromDiscord() {
   if (seenTokensLoaded) return;
@@ -49,6 +49,7 @@ async function loadSeenTokensFromDiscord() {
     console.log('📖 Loading sent CAs from Discord channel...');
     
     // Fetch last 100 messages from channel
+    // Note: Requires MESSAGE CONTENT INTENT enabled in Discord Developer Portal
     const url = `https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ID}/messages?limit=100`;
     const res = await fetch(url, {
       headers: {
@@ -65,16 +66,43 @@ async function loadSeenTokensFromDiscord() {
     const messages = await res.json();
     
     // Extract CAs from messages (format: "**CA:** `<address>`")
+    // Also check embeds in case webhook uses embed format
     const caRegex = /\*\*CA:\*\*\s*`([A-Za-z0-9]+)`/;
+    const plainCaRegex = /`([A-HJ-NP-Za-km-z1-9]{32,44})`/; // Solana address pattern
     
     for (const msg of messages) {
-      const match = msg.content?.match(caRegex);
+      // Try main content first
+      let match = msg.content?.match(caRegex);
       if (match && match[1]) {
         seenTokens.add(match[1]);
+        continue;
+      }
+      
+      // Try plain CA pattern in content
+      match = msg.content?.match(plainCaRegex);
+      if (match && match[1]) {
+        seenTokens.add(match[1]);
+        continue;
+      }
+      
+      // Check embeds (webhook messages may use embeds)
+      if (msg.embeds?.length > 0) {
+        for (const embed of msg.embeds) {
+          const embedText = [embed.title, embed.description, ...(embed.fields?.map(f => f.value) || [])].join(' ');
+          match = embedText?.match(caRegex) || embedText?.match(plainCaRegex);
+          if (match && match[1]) {
+            seenTokens.add(match[1]);
+            break;
+          }
+        }
       }
     }
     
-    console.log(`✅ Loaded ${seenTokens.size} CAs from Discord`);
+    if (seenTokens.size > 0) {
+      console.log(`✅ Loaded ${seenTokens.size} CAs from Discord`);
+    } else {
+      console.log(`⚠️ No CAs found in Discord. Make sure MESSAGE CONTENT INTENT is enabled!`);
+    }
     seenTokensLoaded = true;
     
   } catch (e) {
@@ -620,14 +648,14 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
 }
 
 /**
- * Continuous polling loop for 60 seconds
+ * Continuous polling loop for 59 seconds
  * Call this from the API handler
  */
 export async function pollLoop(options = {}) {
   const { 
     dryRun = false, 
-    maxDurationMs = 55000,  // 55 seconds (leave 5s buffer)
-    pollIntervalMs = 5000,  // Poll every 5 seconds
+    maxDurationMs = 59000,  // 59 seconds (leave 1s buffer for response)
+    pollIntervalMs = 1000,  // Poll every 1 second for fastest signal detection
   } = options;
   
   const startTime = Date.now();

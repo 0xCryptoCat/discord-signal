@@ -1,8 +1,9 @@
 /**
  * Discord Signal Poll Endpoint
  * 
- * Called by Vercel cron every minute.
- * Uses pollLoop() to run for 55 seconds with 5-second intervals.
+ * Called by external cron-job.org every minute.
+ * Runs pollLoop() for 59 seconds with 1-second intervals.
+ * State (sent CAs) is loaded from Discord channel on each cold start.
  */
 
 import { pollLoop, seenTokens } from '../index.js';
@@ -18,10 +19,12 @@ export default async function handler(req, res) {
   console.log(`📊 Currently tracking ${seenTokens.size} seen tokens`);
   
   try {
-    // Run poll loop for 55 seconds (5s buffer for response)
+    // Run poll loop for 59 seconds (1s buffer for response)
+    // Poll every 1 second for fastest signal detection
     const results = await pollLoop({
       dryRun: false,
-      maxDurationMs: 55000, // 55 seconds
+      maxDurationMs: 59000, // 59 seconds
+      pollIntervalMs: 1000, // 1 second between polls
     });
     
     const totalTime = Date.now() - startTime;
@@ -30,10 +33,11 @@ export default async function handler(req, res) {
       success: true,
       timestamp: new Date().toISOString(),
       executionTimeMs: totalTime,
-      signalsSent: results.filter(r => r?.sent).length,
-      signalsProcessed: results.length,
+      pollCount: results.pollCount,
+      signalsSent: results.results.filter(r => r?.sent).length,
+      signalsProcessed: results.results.length,
       seenTokenCount: seenTokens.size,
-      results: results.map(r => ({
+      results: results.results.map(r => ({
         symbol: r?.symbol,
         score: r?.score?.toFixed(2),
         sent: r?.sent,
