@@ -459,7 +459,7 @@ function buildDiscordMessage(tokenAddress, dexData, holders) {
 async function sendToDiscord(content, tokenSymbol) {
   const payload = {
     content: content,
-    username: `Alphalert | ${tokenSymbol}`,
+    username: `${tokenSymbol}`,
     avatar_url: 'https://i.imgur.com/4M34hi2.png', // Placeholder avatar
   };
   
