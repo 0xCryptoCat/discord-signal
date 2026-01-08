@@ -556,6 +556,10 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     return null;
   }
   
+  // IMMEDIATELY mark as seen to prevent duplicate processing
+  // This prevents race conditions when same token appears in multiple polls
+  seenTokens.add(tokenAddress);
+  
   console.log(`\n📊 Processing: ${tokenInfo.tokenSymbol || '???'} (${tokenAddress.slice(0, 8)}...)`);
   
   try {
@@ -611,13 +615,10 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     // 6. Get holder count from OKX tokenInfo
     const holders = tokenInfo.currentHolders || null;
     
-    // 7. Mark as seen
-    seenTokens.add(tokenAddress);
-    
-    // 8. Build Discord message
+    // 7. Build Discord message
     const message = buildDiscordMessage(tokenAddress, dexData, holders);
     
-    // 9. Send or dry-run
+    // 8. Send or dry-run
     let sent = false;
     if (dryRun) {
       console.log(`   📝 [DRY RUN] Would send:`);
