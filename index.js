@@ -397,6 +397,7 @@ async function scoreWalletEntries(walletAddress, maxTokens = 10) {
 
 function formatNumber(num) {
   if (num === null || num === undefined || isNaN(num)) return '???';
+  if (num >= 1_000_000_000_000) return `$${(num / 1_000_000_000_000).toFixed(2)}T`;
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
   if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
@@ -444,10 +445,14 @@ function buildDiscordMessage(tokenAddress, dexData, holders) {
     `**Holders:** ${holders || '???'}`,
     '',
     '**Price Change:**',
-    `\`5m: ${formatPct(dexData.priceChange.m5)} | 1h: ${formatPct(dexData.priceChange.h1)} | 6h: ${formatPct(dexData.priceChange.h6)} | 24h: ${formatPct(dexData.priceChange.h24)}\``,
+    `\` 5m: | 1h: | 6h: | 24h: \``,
+    `\` ${formatPct(dexData.priceChange.m5)} | ${formatPct(dexData.priceChange.h1)} | ${formatPct(dexData.priceChange.h6)} | ${formatPct(dexData.priceChange.h24)}\``,
     '',
     '**Volume:**',
-    `\`5m: ${formatNumber(dexData.volume.m5)} | 1h: ${formatNumber(dexData.volume.h1)} | 6h: ${formatNumber(dexData.volume.h6)} | 24h: ${formatNumber(dexData.volume.h24)}\``,
+    `\` 5m: | 1h: | 6h: | 24h:\``,
+    `\` ${formatNumber(dexData.volume.m5)} | ${formatNumber(dexData.volume.h1)} | ${formatNumber(dexData.volume.h6)} | ${formatNumber(dexData.volume.h24)}\``,
+    '',
+    `*TIME | ${new Date().toISOString()}*`,
   ];
   
   return lines.join('\n');
@@ -460,7 +465,7 @@ async function sendToDiscord(content, tokenSymbol) {
   const payload = {
     content: content,
     username: `${tokenSymbol}`,
-    avatar_url: 'https://i.imgur.com/4M34hi2.png', // Placeholder avatar
+    avatar_url: 'https://gordinator.org/img/gordinator.png', // Placeholder avatar
   };
   
   try {
