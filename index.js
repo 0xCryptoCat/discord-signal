@@ -153,8 +153,9 @@ async function fetchSignalDetail(tokenAddress, batchId, batchIndex) {
 /**
  * Fetch trading history for a wallet
  */
-async function fetchTradingHistory(walletAddress, limit = 15) {
-  const url = `${ENDPOINTS.tradingHistory}?walletAddress=${walletAddress}&chainId=${CHAIN_ID}&isAsc=false&sortType=2&offset=0&limit=${limit}&filterRisk=false&filterSmallBalance=false&filterEmptyBalance=false&t=${Date.now()}`;
+async function fetchTradingHistory(walletAddress, limit = 30) {
+  // sortType=1 sorts by time (most recent first), sortType=2 sorts by PnL
+  const url = `${ENDPOINTS.tradingHistory}?walletAddress=${walletAddress}&chainId=${CHAIN_ID}&isAsc=false&sortType=1&offset=0&limit=${limit}&t=${Date.now()}`;
   
   try {
     const data = await fetchJson(url);
@@ -541,7 +542,7 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     
     console.log(`   👛 ${wallets.length} wallets in signal`);
     
-    // 2. Score wallets (async, parallel with limit)
+    // 2. Score wallets using trading history
     const scoringPromises = wallets.slice(0, 8).map(async (w) => {
       const walletAddr = w.walletAddress || w.address;
       const result = await scoreWalletEntries(walletAddr);
@@ -550,13 +551,21 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     
     const scoredWallets = await Promise.all(scoringPromises);
     
-    // 3. Calculate average score
-    const validScores = scoredWallets.filter(w => w.count > 0);
-    const avgScore = validScores.length > 0
-      ? validScores.reduce((sum, w) => sum + w.avgScore, 0) / validScores.length
-      : 0;
+    // 3. Calculate average score from ALL wallets that were scored
+    //    Include wallets with count > 0 (they have valid trading history scores)
+    //    Wallets with count=0 have no trading history data, skip them
+    const walletsWithData = scoredWallets.filter(w => w.count > 0);
     
-    console.log(`   📈 Avg Score: ${avgScore.toFixed(2)} (${validScores.length} wallets scored)`);
+    // If no wallets have trading data, we can't score this signal
+    if (walletsWithData.length === 0) {
+      console.log(`   ⚠️ No wallet trading history available, skipping`);
+      return null;
+    }
+    
+    // Average of ALL wallet scores (including negative scores!)
+    const avgScore = walletsWithData.reduce((sum, w) => sum + w.avgScore, 0) / walletsWithData.length;
+    
+    console.log(`   📈 Avg Score: ${avgScore.toFixed(2)} (${walletsWithData.length}/${scoredWallets.length} wallets scored)`);
     
     // 4. Filter by score (0 to +2 only) - use small epsilon for float comparison
     if (avgScore < MIN_SCORE - 0.01 || avgScore > MAX_SCORE + 0.01) {
