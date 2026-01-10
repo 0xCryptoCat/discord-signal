@@ -29,6 +29,10 @@ const MAX_SCORE = 2;  // Up to +2
 const seenTokens = new Set();
 let seenTokensLoaded = false;
 
+// Track which wallets we've seen for each token (to filter repeats)
+// Map<tokenAddress, Set<walletPrefix>>
+const tokenWallets = new Map();
+
 // ============================================================
 // DISCORD BOT - Read sent CAs for deduplication
 // ============================================================
@@ -579,8 +583,37 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     
     console.log(`   👛 ${wallets.length} wallets in signal`);
     
-    // 2. Score wallets using trading history
-    const scoringPromises = wallets.slice(0, 8).map(async (w) => {
+    // 2. Filter to only NEW wallets (skip repeats like signal-pipeline does)
+    const existingWallets = tokenWallets.get(tokenAddress) || new Set();
+    const newWallets = [];
+    const repeatWallets = [];
+    
+    for (const w of wallets) {
+      const walletAddr = w.walletAddress || w.address;
+      const prefix = walletAddr.slice(0, 8);
+      if (existingWallets.has(prefix)) {
+        repeatWallets.push(w);
+      } else {
+        newWallets.push(w);
+        existingWallets.add(prefix); // Track for future signals
+      }
+    }
+    
+    // Update tracked wallets for this token
+    tokenWallets.set(tokenAddress, existingWallets);
+    
+    if (repeatWallets.length > 0) {
+      console.log(`   👥 Filtered: ${newWallets.length} new wallets (${repeatWallets.length} repeats removed)`);
+    }
+    
+    // If all wallets are repeats, skip this signal
+    if (newWallets.length === 0) {
+      console.log(`   ⚠️ All wallets are repeats, skipping`);
+      return null;
+    }
+    
+    // 3. Score NEW wallets only using trading history
+    const scoringPromises = newWallets.slice(0, 8).map(async (w) => {
       const walletAddr = w.walletAddress || w.address;
       const result = await scoreWalletEntries(walletAddr);
       return { address: walletAddr, ...result };
@@ -588,7 +621,7 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     
     const scoredWallets = await Promise.all(scoringPromises);
     
-    // 3. Calculate average score from ALL wallets that were scored
+    // 4. Calculate average score from NEW wallets only
     //    Include wallets with count > 0 (they have valid trading history scores)
     //    Wallets with count=0 have no trading history data, skip them
     const walletsWithData = scoredWallets.filter(w => w.count > 0);
@@ -604,20 +637,20 @@ async function processSignalWithOptions(activity, tokenInfo, options = {}) {
     
     console.log(`   📈 Avg Score: ${avgScore.toFixed(2)} (${walletsWithData.length}/${scoredWallets.length} wallets scored)`);
     
-    // 4. Filter by score (0 to +2 only) - use small epsilon for float comparison
+    // 5. Filter by score (0 to +2 only) - use small epsilon for float comparison
     if (avgScore < MIN_SCORE - 0.01 || avgScore > MAX_SCORE + 0.01) {
       console.log(`   ❌ Score ${avgScore.toFixed(2)} outside range [${MIN_SCORE}, ${MAX_SCORE}]`);
       return null;
     }
     
-    // 5. Fetch DexScreener data
+    // 6. Fetch DexScreener data
     const dexData = await fetchDexScreenerData(tokenAddress);
     if (!dexData) {
       console.log(`   ⚠️ No DexScreener data`);
       return null;
     }
     
-    // 6. Get holder count from OKX tokenInfo
+    // 7. Get holder count from OKX tokenInfo
     const holders = tokenInfo.currentHolders || null;
     
     // 7. Build Discord message
